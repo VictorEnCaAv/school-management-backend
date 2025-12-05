@@ -2,15 +2,17 @@ const express = require('express');
 const router = express.Router();
 
 const authRoutes = require('./authRoutes');
-const calificacionRoutes = require('./calificacionRoutes');
+const maestroRoutes = require('./maestroRoutes');
+const controlescolarRoutes = require('./controlescolarRoutes');
 
 // Rutas públicas
 router.use('/auth', authRoutes);
 
-// Rutas protegidas
-router.use('/calificaciones', calificacionRoutes);
+// Rutas protegidas por rol
+router.use('/maestro', maestroRoutes);
+router.use('/controlescolar', controlescolarRoutes);
 
-// Ruta raíz
+// Ruta de información de la API
 router.get('/', (req, res) => {
   res.json({
     success: true,
@@ -18,8 +20,10 @@ router.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       auth: '/api/auth',
-      calificaciones: '/api/calificaciones'
-    }
+      maestro: '/api/maestro',
+      controlescolar: '/api/controlescolar'
+    },
+    documentation: 'Ver README.md para más detalles'
   });
 });
 
