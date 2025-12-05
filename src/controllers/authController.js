@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const jwtConfig = require('../config/jwt');
-const { Usuario, Maestro } = require('../models');
+const { Usuario } = require('../models');
 const { asyncHandler } = require('../middlewares/errorHandler');
 
 /**
@@ -9,14 +9,9 @@ const { asyncHandler } = require('../middlewares/errorHandler');
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  // Buscar usuario
+  // Buscar usuario (sin includes ya que no hay tabla maestro separada)
   const usuario = await Usuario.findOne({
-    where: { email },
-    include: [{
-      model: Maestro,
-      as: 'maestro',
-      attributes: ['id', 'nombre', 'apellido_paterno', 'apellido_materno']
-    }]
+    where: { email }
   });
 
   if (!usuario) {
@@ -33,14 +28,6 @@ const login = asyncHandler(async (req, res) => {
     return res.status(401).json({
       success: false,
       message: 'Credenciales inválidas'
-    });
-  }
-
-  // Verificar si está activo
-  if (!usuario.activo) {
-    return res.status(403).json({
-      success: false,
-      message: 'Usuario inactivo'
     });
   }
 
@@ -77,12 +64,7 @@ const login = asyncHandler(async (req, res) => {
  */
 const perfil = asyncHandler(async (req, res) => {
   const usuario = await Usuario.findByPk(req.usuario.id, {
-    attributes: { exclude: ['password'] },
-    include: [{
-      model: Maestro,
-      as: 'maestro',
-      attributes: ['id', 'nombre', 'apellido_paterno', 'apellido_materno', 'especialidad']
-    }]
+    attributes: { exclude: ['password_hash'] }
   });
 
   res.json({

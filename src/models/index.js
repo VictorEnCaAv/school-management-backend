@@ -24,9 +24,20 @@ const Usuario = require('./Usuario')(sequelize);
 const Alumno = require('./Alumno')(sequelize);
 const Materia = require('./Materia')(sequelize);
 const Calificacion = require('./Calificacion')(sequelize);
+const Maestro = require('./Maestro')(sequelize);
 
-// Definir relaciones según el esquema SQL
-// Calificacion -> Alumno (N:1)
+// Relaciones Usuario ↔ Maestro
+Usuario.hasMany(Maestro, {
+  foreignKey: 'usuario_id',
+  as: 'maestro'
+});
+
+Maestro.belongsTo(Usuario, {
+  foreignKey: 'usuario_id',
+  as: 'usuario'
+});
+
+// Calificaciones
 Calificacion.belongsTo(Alumno, {
   foreignKey: 'alumno_id',
   as: 'alumno',
@@ -37,7 +48,6 @@ Alumno.hasMany(Calificacion, {
   as: 'calificaciones'
 });
 
-// Calificacion -> Materia (N:1)
 Calificacion.belongsTo(Materia, {
   foreignKey: 'materia_id',
   as: 'materia',
@@ -48,7 +58,6 @@ Materia.hasMany(Calificacion, {
   as: 'calificaciones'
 });
 
-// Calificacion -> Usuario/Maestro (N:1)
 Calificacion.belongsTo(Usuario, {
   foreignKey: 'maestro_id',
   as: 'maestro',
@@ -59,12 +68,13 @@ Usuario.hasMany(Calificacion, {
   as: 'calificaciones'
 });
 
-// Exportar modelos y conexión
+// Exportar modelos
 module.exports = {
   sequelize,
   Sequelize,
   Usuario,
   Alumno,
   Materia,
-  Calificacion
+  Calificacion,
+  Maestro
 };
