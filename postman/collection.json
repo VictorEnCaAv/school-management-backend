@@ -1,0 +1,379 @@
+{
+  "info": {
+    "name": "Sistema Gestión Escolar API",
+    "_postman_id": "school-management-api",
+    "description": "Colección completa de endpoints para el Sistema de Gestión y Reporte de Calificaciones Escolares",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('token', response.data.token);",
+                  "    console.log('Token guardado:', response.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@school.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Iniciar sesión con email y contraseña. Retorna un token JWT."
+          },
+          "response": []
+        },
+        {
+          "name": "Login Maestro",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('token', response.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"maestro1@school.com\",\n  \"password\": \"maestro123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Perfil",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/perfil",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "perfil"]
+            },
+            "description": "Obtener información del usuario autenticado"
+          },
+          "response": []
+        },
+        {
+          "name": "Refrescar Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "refresh"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Maestro",
+      "item": [
+        {
+          "name": "Obtener Alumnos Asignados",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/maestro/alumnos?grupo=1° A",
+              "host": ["{{base_url}}"],
+              "path": ["maestro", "alumnos"],
+              "query": [
+                {
+                  "key": "grupo",
+                  "value": "1° A",
+                  "description": "Filtrar por grupo (opcional)"
+                }
+              ]
+            },
+            "description": "Obtener lista de alumnos que tienen calificaciones registradas por el maestro autenticado"
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Mis Calificaciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/maestro/calificaciones?materia_id=&alumno_id=&grupo=",
+              "host": ["{{base_url}}"],
+              "path": ["maestro", "calificaciones"],
+              "query": [
+                {
+                  "key": "materia_id",
+                  "value": "",
+                  "description": "Filtrar por materia (opcional)"
+                },
+                {
+                  "key": "alumno_id",
+                  "value": "",
+                  "description": "Filtrar por alumno (opcional)"
+                },
+                {
+                  "key": "grupo",
+                  "value": "",
+                  "description": "Filtrar por grupo (opcional)"
+                }
+              ]
+            },
+            "description": "Obtener calificaciones registradas por el maestro autenticado"
+          },
+          "response": []
+        },
+        {
+          "name": "Crear o Actualizar Calificación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alumno_id\": 1,\n  \"materia_id\": 1,\n  \"nota\": 85.5,\n  \"observaciones\": \"Buen desempeño en el examen\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/maestro/calificaciones",
+              "host": ["{{base_url}}"],
+              "path": ["maestro", "calificaciones"]
+            },
+            "description": "Crear nueva calificación o actualizar si ya existe una del mismo maestro para el mismo alumno y materia"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Control Escolar",
+      "item": [
+        {
+          "name": "Reporte General",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/controlescolar/reporte",
+              "host": ["{{base_url}}"],
+              "path": ["controlescolar", "reporte"]
+            },
+            "description": "Obtener reporte general con promedios por alumno y por materia"
+          },
+          "response": []
+        },
+        {
+          "name": "Reporte Por Alumno",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/controlescolar/reporte?alumno_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["controlescolar", "reporte"],
+              "query": [
+                {
+                  "key": "alumno_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Obtener reporte de calificaciones de un alumno específico"
+          },
+          "response": []
+        },
+        {
+          "name": "Reporte Por Materia",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/controlescolar/reporte?materia_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["controlescolar", "reporte"],
+              "query": [
+                {
+                  "key": "materia_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Obtener estadísticas y calificaciones de una materia específica"
+          },
+          "response": []
+        },
+        {
+          "name": "Reporte Por Grupo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/controlescolar/reporte?grupo=1° A",
+              "host": ["{{base_url}}"],
+              "path": ["controlescolar", "reporte"],
+              "query": [
+                {
+                  "key": "grupo",
+                  "value": "1° A"
+                }
+              ]
+            },
+            "description": "Obtener reporte filtrado por grupo"
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar Calificación",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/controlescolar/calificaciones/1",
+              "host": ["{{base_url}}"],
+              "path": ["controlescolar", "calificaciones", "1"]
+            },
+            "description": "Eliminar (soft delete) una calificación. Solo Control Escolar puede hacerlo."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["health"]
+        },
+        "description": "Verificar estado del servidor"
+      },
+      "response": []
+    },
+    {
+      "name": "API Info",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}",
+          "host": ["{{base_url}}"]
+        },
+        "description": "Obtener información de la API y endpoints disponibles"
+      },
+      "response": []
+    }
+  ]
+}
