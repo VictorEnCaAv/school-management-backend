@@ -14,7 +14,7 @@ const verificarRol = (...roles) => {
     if (!roles.includes(req.usuario.rol)) {
       return res.status(403).json({
         success: false,
-        message: `No tienes permisos para acceder a este recurso. Se requiere rol: ${roles.join(' o ')}`
+        message: 'No tienes permisos para acceder a este recurso'
       });
     }
 
@@ -23,19 +23,19 @@ const verificarRol = (...roles) => {
 };
 
 /**
- * Middleware específico para Control Escolar (Admin)
+ * Middleware específico para admin
  */
-const esAdmin = verificarRol('CONTROL_ESCOLAR');
+const esAdmin = verificarRol('admin');
 
 /**
  * Middleware específico para maestro
  */
-const esMaestro = verificarRol('MAESTRO');
+const esMaestro = verificarRol('maestro');
 
 /**
  * Middleware para admin o maestro
  */
-const esAdminOMaestro = verificarRol('CONTROL_ESCOLAR', 'MAESTRO');
+const esAdminOMaestro = verificarRol('admin', 'maestro');
 
 module.exports = {
   verificarRol,
