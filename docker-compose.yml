@@ -7,8 +7,8 @@ services:
     container_name: school_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: school_admin
-      POSTGRES_PASSWORD: school_pass_2024
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: school_management
     ports:
       - "5432:5432"
@@ -17,7 +17,7 @@ services:
     networks:
       - school_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U school_admin -d school_management"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d school_management"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +25,7 @@ services:
   # Backend API
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: school_api
     restart: unless-stopped
@@ -35,10 +35,11 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: school_management
-      DB_USER: school_admin
-      DB_PASSWORD: school_pass_2024
-      JWT_SECRET: your_super_secret_jwt_key_change_in_production
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: your_super_secret_jwt_key_change_in_production_2024
       JWT_EXPIRES_IN: 24h
+      CORS_ORIGIN: http://localhost:5173
     ports:
       - "3000:3000"
     depends_on:
@@ -47,27 +48,9 @@ services:
     networks:
       - school_network
     volumes:
-      - ./backend:/app
+      - ./src:/app/src
       - /app/node_modules
-
-  # Frontend React
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: school_frontend
-    restart: unless-stopped
-    environment:
-      VITE_API_URL: http://localhost:3000/api
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-    networks:
-      - school_network
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    command: sh -c "npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all && npm start"
 
 networks:
   school_network:
