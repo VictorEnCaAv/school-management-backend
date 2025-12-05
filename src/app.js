@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const routes = require('./routes');
 const { errorHandler } = require('./middlewares/errorHandler');
+const { apiLimiter } = require('./middlewares/rateLimitMiddleware');
 const { sequelize } = require('./models');
 
 const app = express();
@@ -17,21 +18,27 @@ app.use(cors({
   credentials: true
 }));
 
+// Rate limiting general
+app.use('/api/', apiLimiter);
+
 // Logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
 }
 
 // Parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -42,7 +49,8 @@ app.use('/api', routes);
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Ruta no encontrada'
+    message: 'Ruta no encontrada',
+    path: req.originalUrl
   });
 });
 
@@ -65,14 +73,26 @@ const startServer = async () => {
     // Iniciar servidor
     app.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-      console.log(`📊 Ambiente: ${process.env.NODE_ENV}`);
+      console.log(`📊 Ambiente: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔗 API disponible en: http://localhost:${PORT}/api`);
+      console.log(`💚 Health check: http://localhost:${PORT}/health`);
     });
   } catch (error) {
     console.error('❌ Error al iniciar servidor:', error);
     process.exit(1);
   }
 };
+
+// Manejo de errores no capturados
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Rejection:', err);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1);
+});
 
 startServer();
 

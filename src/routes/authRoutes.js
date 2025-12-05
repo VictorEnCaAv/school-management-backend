@@ -4,24 +4,29 @@ const { body } = require('express-validator');
 const { login, perfil, refrescarToken } = require('../controllers/authController');
 const { verificarToken } = require('../middlewares/authMiddleware');
 const { validarCampos } = require('../middlewares/validationMiddleware');
+const { authLimiter } = require('../middlewares/rateLimitMiddleware');
 
 /**
  * @route   POST /api/auth/login
  * @desc    Login de usuario
  * @access  Public
  */
-router.post('/login', [
-  body('email')
-    .isEmail()
-    .withMessage('Debe proporcionar un email válido')
-    .normalizeEmail(),
-  body('password')
-    .notEmpty()
-    .withMessage('La contraseña es requerida')
-    .isLength({ min: 6 })
-    .withMessage('La contraseña debe tener al menos 6 caracteres'),
-  validarCampos
-], login);
+router.post('/login', 
+  authLimiter, // Rate limiting para prevenir fuerza bruta
+  [
+    body('email')
+      .isEmail()
+      .withMessage('Debe proporcionar un email válido')
+      .normalizeEmail(),
+    body('password')
+      .notEmpty()
+      .withMessage('La contraseña es requerida')
+      .isLength({ min: 6 })
+      .withMessage('La contraseña debe tener al menos 6 caracteres'),
+    validarCampos
+  ], 
+  login
+);
 
 /**
  * @route   GET /api/auth/perfil
