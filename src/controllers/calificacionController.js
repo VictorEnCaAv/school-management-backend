@@ -1,4 +1,4 @@
-const { Calificacion, Alumno, Materia, Maestro } = require('../models');
+const { Calificacion, Alumno, Materia, Usuario } = require('../models');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { Op } = require('sequelize');
 
@@ -9,8 +9,6 @@ const obtenerCalificaciones = asyncHandler(async (req, res) => {
   const {
     materia_id,
     alumno_id,
-    periodo,
-    ciclo_escolar,
     page = 1,
     limit = 50
   } = req.query;
@@ -19,20 +17,16 @@ const obtenerCalificaciones = asyncHandler(async (req, res) => {
   const offset = (page - 1) * limit;
 
   // Construir filtros
-  const where = {};
+  const where = {
+    deleted_at: null // Solo calificaciones no eliminadas
+  };
   
   if (materia_id) where.materia_id = materia_id;
   if (alumno_id) where.alumno_id = alumno_id;
-  if (periodo) where.periodo = periodo;
-  if (ciclo_escolar) where.ciclo_escolar = ciclo_escolar;
 
-  // Si es maestro, filtrar solo sus materias
-  let materiaWhere = {};
-  if (usuario.rol === 'maestro') {
-    const maestro = await Maestro.findOne({ where: { usuario_id: usuario.id } });
-    if (maestro) {
-      materiaWhere.maestro_id = maestro.id;
-    }
+  // Si es maestro, filtrar solo sus calificaciones
+  if (usuario.rol === 'MAESTRO') {
+    where.maestro_id = usuario.id;
   }
 
   const { count, rows: calificaciones } = await Calificacion.findAndCountAll({
@@ -41,13 +35,17 @@ const obtenerCalificaciones = asyncHandler(async (req, res) => {
       {
         model: Alumno,
         as: 'alumno',
-        attributes: ['id', 'matricula', 'nombre', 'apellido_paterno', 'apellido_materno', 'grado', 'grupo']
+        attributes: ['id', 'matricula', 'nombre', 'grupo']
       },
       {
         model: Materia,
         as: 'materia',
-        attributes: ['id', 'nombre', 'clave', 'grado', 'creditos'],
-        where: materiaWhere
+        attributes: ['id', 'nombre', 'codigo']
+      },
+      {
+        model: Usuario,
+        as: 'maestro',
+        attributes: ['id', 'nombre', 'email']
       }
     ],
     limit: parseInt(limit),
@@ -57,14 +55,12 @@ const obtenerCalificaciones = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: {
-      calificaciones,
-      pagination: {
-        total: count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(count / limit)
-      }
+    data: calificaciones,
+    pagination: {
+      total: count,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(count / limit)
     }
   });
 });
@@ -75,17 +71,26 @@ const obtenerCalificaciones = asyncHandler(async (req, res) => {
 const obtenerCalificacionPorId = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const calificacion = await Calificacion.findByPk(id, {
+  const calificacion = await Calificacion.findOne({
+    where: {
+      id,
+      deleted_at: null
+    },
     include: [
       {
         model: Alumno,
         as: 'alumno',
-        attributes: ['id', 'matricula', 'nombre', 'apellido_paterno', 'apellido_materno']
+        attributes: ['id', 'matricula', 'nombre']
       },
       {
         model: Materia,
         as: 'materia',
-        attributes: ['id', 'nombre', 'clave']
+        attributes: ['id', 'nombre', 'codigo']
+      },
+      {
+        model: Usuario,
+        as: 'maestro',
+        attributes: ['id', 'nombre']
       }
     ]
   });
@@ -107,7 +112,7 @@ const obtenerCalificacionPorId = asyncHandler(async (req, res) => {
  * Crear nueva calificación
  */
 const crearCalificacion = asyncHandler(async (req, res) => {
-  const { alumno_id, materia_id, periodo, calificacion, observaciones, ciclo_escolar } = req.body;
+  const { alumno_id, materia_id, nota, observaciones } = req.body;
   const usuario = req.usuario;
 
   // Verificar que la materia exista
@@ -119,17 +124,6 @@ const crearCalificacion = asyncHandler(async (req, res) => {
     });
   }
 
-  // Si es maestro, verificar que sea su materia
-  if (usuario.rol === 'maestro') {
-    const maestro = await Maestro.findOne({ where: { usuario_id: usuario.id } });
-    if (maestro && materia.maestro_id !== maestro.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'No tienes permiso para calificar esta materia'
-      });
-    }
-  }
-
   // Verificar que el alumno exista
   const alumno = await Alumno.findByPk(alumno_id);
   if (!alumno) {
@@ -139,14 +133,14 @@ const crearCalificacion = asyncHandler(async (req, res) => {
     });
   }
 
-  // Crear calificación
+  // Crear calificación (el maestro_id es el usuario autenticado)
   const nuevaCalificacion = await Calificacion.create({
     alumno_id,
     materia_id,
-    periodo,
-    calificacion,
+    maestro_id: usuario.id,
+    nota,
     observaciones,
-    ciclo_escolar: ciclo_escolar || '2024-2025'
+    fecha_registro: new Date()
   });
 
   // Obtener calificación con relaciones
@@ -155,12 +149,12 @@ const crearCalificacion = asyncHandler(async (req, res) => {
       {
         model: Alumno,
         as: 'alumno',
-        attributes: ['id', 'matricula', 'nombre', 'apellido_paterno', 'apellido_materno']
+        attributes: ['id', 'matricula', 'nombre']
       },
       {
         model: Materia,
         as: 'materia',
-        attributes: ['id', 'nombre', 'clave']
+        attributes: ['id', 'nombre', 'codigo']
       }
     ]
   });
@@ -177,11 +171,15 @@ const crearCalificacion = asyncHandler(async (req, res) => {
  */
 const actualizarCalificacion = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { calificacion, observaciones, periodo } = req.body;
+  const { nota, observaciones } = req.body;
   const usuario = req.usuario;
 
   // Buscar calificación
-  const calificacionExistente = await Calificacion.findByPk(id, {
+  const calificacionExistente = await Calificacion.findOne({
+    where: {
+      id,
+      deleted_at: null
+    },
     include: [{
       model: Materia,
       as: 'materia'
@@ -195,22 +193,18 @@ const actualizarCalificacion = asyncHandler(async (req, res) => {
     });
   }
 
-  // Si es maestro, verificar que sea su materia
-  if (usuario.rol === 'maestro') {
-    const maestro = await Maestro.findOne({ where: { usuario_id: usuario.id } });
-    if (maestro && calificacionExistente.materia.maestro_id !== maestro.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'No tienes permiso para modificar esta calificación'
-      });
-    }
+  // Si es maestro, verificar que sea su calificación
+  if (usuario.rol === 'MAESTRO' && calificacionExistente.maestro_id !== usuario.id) {
+    return res.status(403).json({
+      success: false,
+      message: 'No tienes permiso para modificar esta calificación'
+    });
   }
 
   // Actualizar
   await calificacionExistente.update({
-    calificacion: calificacion || calificacionExistente.calificacion,
-    observaciones: observaciones !== undefined ? observaciones : calificacionExistente.observaciones,
-    periodo: periodo || calificacionExistente.periodo
+    nota: nota !== undefined ? nota : calificacionExistente.nota,
+    observaciones: observaciones !== undefined ? observaciones : calificacionExistente.observaciones
   });
 
   // Obtener calificación actualizada con relaciones
@@ -219,12 +213,12 @@ const actualizarCalificacion = asyncHandler(async (req, res) => {
       {
         model: Alumno,
         as: 'alumno',
-        attributes: ['id', 'matricula', 'nombre', 'apellido_paterno', 'apellido_materno']
+        attributes: ['id', 'matricula', 'nombre']
       },
       {
         model: Materia,
         as: 'materia',
-        attributes: ['id', 'nombre', 'clave']
+        attributes: ['id', 'nombre', 'codigo']
       }
     ]
   });
@@ -237,17 +231,17 @@ const actualizarCalificacion = asyncHandler(async (req, res) => {
 });
 
 /**
- * Eliminar calificación
+ * Eliminar calificación (soft delete)
  */
 const eliminarCalificacion = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const usuario = req.usuario;
 
-  const calificacion = await Calificacion.findByPk(id, {
-    include: [{
-      model: Materia,
-      as: 'materia'
-    }]
+  const calificacion = await Calificacion.findOne({
+    where: {
+      id,
+      deleted_at: null
+    }
   });
 
   if (!calificacion) {
@@ -257,18 +251,18 @@ const eliminarCalificacion = asyncHandler(async (req, res) => {
     });
   }
 
-  // Si es maestro, verificar que sea su materia
-  if (usuario.rol === 'maestro') {
-    const maestro = await Maestro.findOne({ where: { usuario_id: usuario.id } });
-    if (maestro && calificacion.materia.maestro_id !== maestro.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'No tienes permiso para eliminar esta calificación'
-      });
-    }
+  // Si es maestro, verificar que sea su calificación
+  if (usuario.rol === 'MAESTRO' && calificacion.maestro_id !== usuario.id) {
+    return res.status(403).json({
+      success: false,
+      message: 'No tienes permiso para eliminar esta calificación'
+    });
   }
 
-  await calificacion.destroy();
+  // Soft delete
+  await calificacion.update({
+    deleted_at: new Date()
+  });
 
   res.json({
     success: true,

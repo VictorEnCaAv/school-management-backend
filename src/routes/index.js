@@ -3,20 +3,14 @@ const router = express.Router();
 
 const authRoutes = require('./authRoutes');
 const calificacionRoutes = require('./calificacionRoutes');
-const alumnoRoutes = require('./alumnoRoutes');
-const materiaRoutes = require('./materiaRoutes');
-const reporteRoutes = require('./reporteRoutes');
 
 // Rutas públicas
 router.use('/auth', authRoutes);
 
-// Rutas protegidas (requieren autenticación)
+// Rutas protegidas
 router.use('/calificaciones', calificacionRoutes);
-router.use('/alumnos', alumnoRoutes);
-router.use('/materias', materiaRoutes);
-router.use('/reportes', reporteRoutes);
 
-// Ruta de información de la API
+// Ruta raíz
 router.get('/', (req, res) => {
   res.json({
     success: true,
@@ -24,10 +18,7 @@ router.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       auth: '/api/auth',
-      calificaciones: '/api/calificaciones',
-      alumnos: '/api/alumnos',
-      materias: '/api/materias',
-      reportes: '/api/reportes'
+      calificaciones: '/api/calificaciones'
     }
   });
 });
