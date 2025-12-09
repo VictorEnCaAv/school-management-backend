@@ -2,31 +2,58 @@
 const express = require('express');
 const router = express.Router();
 const controlEscolarController = require('../controllers/controlEscolarController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const roleMiddleware = require('../middlewares/roleMiddleware');
-const { body } = require('express-validator');
-const validationMiddleware = require('../middlewares/validationMiddleware');
+const { verificarToken } = require('../middlewares/authMiddleware');
+const { esAdmin } = require('../middlewares/roleMiddleware'); // esAdmin verifica CONTROL_ESCOLAR
+const { body, param, query } = require('express-validator');
+const { validarCampos } = require('../middlewares/validationMiddleware');
 
-// Todas las rutas requieren CONTROL_ESCOLAR
-router.use(authMiddleware);
-router.use(roleMiddleware(['CONTROL_ESCOLAR']));
+// Todas las rutas requieren autenticación y rol CONTROL_ESCOLAR
+router.use(verificarToken);
+router.use(esAdmin);
 
-// GET /api/controlescolar/calificaciones - Ver todas las calificaciones
-router.get('/calificaciones', controlEscolarController.obtenerTodasLasCalificaciones);
+// Rutas para gestión de calificaciones
 
-// PUT /api/controlescolar/calificaciones/:id - Modificar calificación
-router.put('/calificaciones/:id',
+// GET /api/control-escolar/calificaciones - Listar todas las calificaciones (incluye eliminadas)
+router.get('/calificaciones', 
   [
-    body('nota').isFloat({ min: 0, max: 100 }).withMessage('Nota debe estar entre 0 y 100'),
-    validationMiddleware
+    query('pagina').optional().isInt({ min: 1 }).toInt(),
+    query('limite').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('asignacion_id').optional().isInt(),
+    query('alumno_id').optional().isInt(),
+    query('periodo').optional().isString(),
+    query('incluirEliminadas').optional().isBoolean(),
+    validarCampos
   ],
-  controlEscolarController.modificarCalificacion
+  controlEscolarController.listarCalificaciones
 );
 
-// DELETE /api/controlescolar/calificaciones/:id - Eliminar calificación
-router.delete('/calificaciones/:id', controlEscolarController.eliminarCalificacion);
+// GET /api/control-escolar/calificaciones/:id - Obtener detalle de calificación
+router.get('/calificaciones/:id',
+  [
+    param('id').isInt().withMessage('ID inválido'),
+    validarCampos
+  ],
+  controlEscolarController.obtenerCalificacion
+);
 
-// GET /api/controlescolar/reportes - Reporte general
-router.get('/reportes', controlEscolarController.obtenerReporteGeneral);
+// DELETE /api/control-escolar/calificaciones/:id - Soft delete de calificación
+router.delete('/calificaciones/:id',
+  [
+    param('id').isInt().withMessage('ID inválido'),
+    body('motivo').optional().isString().withMessage('Motivo debe ser texto'),
+    validarCampos
+  ],
+  controlEscolarController.eliminarCalificacion
+);
 
+// POST /api/control-escolar/calificaciones/:id/restaurar - Restaurar calificación eliminada
+router.post('/calificaciones/:id/restaurar',
+  [
+    param('id').isInt().withMessage('ID inválido'),
+    validarCampos
+  ],
+  controlEscolarController.restaurarCalificacion
+);
+
+// Exporta las rutas existentes que ya tengas
 module.exports = router;

@@ -1,40 +1,175 @@
 // src/controllers/controlEscolarController.js
 const { Calificacion, Asignacion, Alumno, Materia, Grupo, Usuario, sequelize } = require('../models');
 
-exports.obtenerTodasLasCalificaciones = async (req, res) => {
+/**
+ * Listar todas las calificaciones (incluyendo eliminadas)
+ */
+exports.listarCalificaciones = async (req, res) => {
   try {
-    const { maestro_id, materia_id, grupo_id, periodo } = req.query;
+    const {
+      pagina = 1,
+      limite = 20,
+      asignacion_id,
+      alumno_id,
+      periodo,
+      incluirEliminadas = false
+    } = req.query;
+
+    const offset = (pagina - 1) * limite;
 
     const whereClause = {};
-    const asignacionWhere = {};
+    
+    if (asignacion_id) {
+      whereClause.asignacion_id = asignacion_id;
+    }
+    
+    if (alumno_id) {
+      whereClause.alumno_id = alumno_id;
+    }
+    
+    if (periodo) {
+      whereClause.periodo = periodo;
+    }
 
-    if (maestro_id) asignacionWhere.maestro_id = maestro_id;
-    if (materia_id) asignacionWhere.materia_id = materia_id;
-    if (grupo_id) asignacionWhere.grupo_id = grupo_id;
-    if (periodo) whereClause.periodo = periodo;
-
-    const calificaciones = await Calificacion.findAll({
+    const options = {
       where: whereClause,
       include: [
         {
           model: Asignacion,
           as: 'asignacion',
-          where: Object.keys(asignacionWhere).length > 0 ? asignacionWhere : undefined,
           include: [
+            { model: Materia, as: 'materia' },
+            { model: Grupo, as: 'grupo' },
             { 
-              model: Materia, 
-              as: 'materia',
-              attributes: ['id', 'codigo', 'nombre']
-            },
-            { 
-              model: Grupo, 
-              as: 'grupo',
-              attributes: ['id', 'codigo', 'nombre']
-            },
-            {
-              model: Usuario,
+              model: Usuario, 
               as: 'maestro',
-              attributes: ['id', 'nombre', 'apellidos']
+              attributes: ['id', 'nombre', 'apellidos', 'email']
+            }
+          ]
+        },
+        {
+          model: Alumno,
+          as: 'alumno',
+          attributes: ['id', 'matricula', 'nombre', 'apellidos']
+        },
+        {
+          model: Usuario,
+          as: 'eliminadoPor',
+          attributes: ['id', 'nombre', 'apellidos', 'email'],
+          required: false
+        }
+      ],
+      order: [
+        ['deletedAt', 'ASC'], // Primero las no eliminadas
+        ['periodo', 'DESC'],
+        ['fecha_evaluacion', 'DESC']
+      ],
+      limit: parseInt(limite),
+      offset: parseInt(offset),
+      paranoid: !incluirEliminadas // Si no incluye eliminadas, usa paranoid
+    };
+
+    const { count, rows: calificaciones } = await Calificacion.findAndCountAll(options);
+
+    res.json({
+      success: true,
+      data: calificaciones,
+      paginacion: {
+        total: count,
+        pagina: parseInt(pagina),
+        totalPaginas: Math.ceil(count / limite),
+        limite: parseInt(limite)
+      }
+    });
+  } catch (error) {
+    console.error('Error al listar calificaciones:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al listar calificaciones'
+    });
+  }
+};
+
+/**
+ * Obtener detalle de una calificación
+ */
+exports.obtenerCalificacion = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const calificacion = await Calificacion.findByPk(id, {
+      include: [
+        {
+          model: Asignacion,
+          as: 'asignacion',
+          include: [
+            { model: Materia, as: 'materia' },
+            { model: Grupo, as: 'grupo' },
+            { 
+              model: Usuario, 
+              as: 'maestro',
+              attributes: ['id', 'nombre', 'apellidos', 'email']
+            }
+          ]
+        },
+        {
+          model: Alumno,
+          as: 'alumno',
+          attributes: ['id', 'matricula', 'nombre', 'apellidos', 'grupo_id']
+        },
+        {
+          model: Usuario,
+          as: 'eliminadoPor',
+          attributes: ['id', 'nombre', 'apellidos', 'email'],
+          required: false
+        }
+      ],
+      paranoid: false // Incluir incluso si está eliminada
+    });
+
+    if (!calificacion) {
+      return res.status(404).json({
+        success: false,
+        error: 'Calificación no encontrada'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: calificacion
+    });
+  } catch (error) {
+    console.error('Error al obtener calificación:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al obtener calificación'
+    });
+  }
+};
+
+/**
+ * Eliminar (soft delete) una calificación
+ */
+exports.eliminarCalificacion = async (req, res) => {
+  const t = await sequelize.transaction();
+  
+  try {
+    const { id } = req.params;
+    const { motivo } = req.body;
+    const adminId = req.usuario.id;
+
+    // Buscar la calificación
+    const calificacion = await Calificacion.findByPk(id, {
+      include: [
+        {
+          model: Asignacion,
+          as: 'asignacion',
+          include: [
+            { model: Materia, as: 'materia' },
+            { 
+              model: Usuario, 
+              as: 'maestro',
+              attributes: ['id', 'nombre', 'apellidos', 'email']
             }
           ]
         },
@@ -44,33 +179,8 @@ exports.obtenerTodasLasCalificaciones = async (req, res) => {
           attributes: ['id', 'matricula', 'nombre', 'apellidos']
         }
       ],
-      order: [
-        ['created_at', 'DESC']
-      ]
+      transaction: t
     });
-
-    res.json({
-      success: true,
-      data: calificaciones
-    });
-  } catch (error) {
-    console.error('Error al obtener calificaciones:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error al obtener calificaciones'
-    });
-  }
-};
-
-exports.modificarCalificacion = async (req, res) => {
-  const t = await sequelize.transaction();
-
-  try {
-    const { id } = req.params;
-    const { nota, observaciones } = req.body;
-    const adminId = req.usuario.id;
-
-    const calificacion = await Calificacion.findByPk(id);
 
     if (!calificacion) {
       await t.rollback();
@@ -80,76 +190,41 @@ exports.modificarCalificacion = async (req, res) => {
       });
     }
 
-    // Actualizar con registro de quién modificó
+    // Verificar que no esté ya eliminada
+    if (calificacion.deletedAt) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        error: 'La calificación ya está eliminada'
+      });
+    }
+
+    // Realizar soft delete con auditoría
     await calificacion.update({
-      nota,
-      observaciones,
-      modificada_por: adminId,
-      fecha_modificacion: new Date()
+      deleteReason: motivo || 'Eliminado por control escolar',
+      deletedBy: adminId
     }, { transaction: t });
 
-    await t.commit();
-
-    // Recargar con datos completos
-    const calificacionActualizada = await Calificacion.findByPk(id, {
-      include: [
-        {
-          model: Asignacion,
-          as: 'asignacion',
-          include: [
-            { model: Materia, as: 'materia' },
-            { model: Grupo, as: 'grupo' },
-            { model: Usuario, as: 'maestro' }
-          ]
-        },
-        { model: Alumno, as: 'alumno' },
-        { 
-          model: Usuario, 
-          as: 'modificador',
-          attributes: ['id', 'nombre', 'apellidos']
-        }
-      ]
-    });
-
-    res.json({
-      success: true,
-      message: 'Calificación modificada por Control Escolar',
-      data: calificacionActualizada
-    });
-  } catch (error) {
-    await t.rollback();
-    console.error('Error al modificar calificación:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error al modificar calificación'
-    });
-  }
-};
-
-exports.eliminarCalificacion = async (req, res) => {
-  const t = await sequelize.transaction();
-
-  try {
-    const { id } = req.params;
-
-    const calificacion = await Calificacion.findByPk(id);
-
-    if (!calificacion) {
-      await t.rollback();
-      return res.status(404).json({
-        success: false,
-        error: 'Calificación no encontrada'
-      });
-    }
-
-    // Soft delete
     await calificacion.destroy({ transaction: t });
 
     await t.commit();
 
+    // Registrar en logs del sistema
+    console.log(`Calificación ${id} eliminada por control escolar ${adminId}. Motivo: ${motivo || 'Sin motivo especificado'}`);
+
     res.json({
       success: true,
-      message: 'Calificación eliminada correctamente'
+      message: 'Calificación eliminada exitosamente',
+      data: {
+        id: calificacion.id,
+        alumno: calificacion.alumno.nombre + ' ' + calificacion.alumno.apellidos,
+        materia: calificacion.asignacion.materia.nombre,
+        nota: calificacion.nota,
+        periodo: calificacion.periodo,
+        eliminadoPor: req.usuario.nombre + ' ' + req.usuario.apellidos,
+        fechaEliminacion: new Date(),
+        motivo: motivo
+      }
     });
   } catch (error) {
     await t.rollback();
@@ -161,44 +236,72 @@ exports.eliminarCalificacion = async (req, res) => {
   }
 };
 
-exports.obtenerReporteGeneral = async (req, res) => {
+/**
+ * Restaurar una calificación eliminada
+ */
+exports.restaurarCalificacion = async (req, res) => {
+  const t = await sequelize.transaction();
+  
   try {
-    const [reporteGeneral] = await sequelize.query(`
-      SELECT 
-        COUNT(DISTINCT c.alumno_id) as total_alumnos,
-        COUNT(c.id) as total_calificaciones,
-        ROUND(AVG(c.nota), 2) as promedio_general,
-        ROUND(MIN(c.nota), 2) as nota_minima,
-        ROUND(MAX(c.nota), 2) as nota_maxima
-      FROM calificaciones c
-      WHERE c.deleted_at IS NULL
-    `);
+    const { id } = req.params;
+    const adminId = req.usuario.id;
 
-    const [promediosPorMateria] = await sequelize.query(`
-      SELECT 
-        m.nombre as materia,
-        ROUND(AVG(c.nota), 2) as promedio,
-        COUNT(c.id) as total_calificaciones
-      FROM calificaciones c
-      INNER JOIN asignaciones a ON c.asignacion_id = a.id
-      INNER JOIN materias m ON a.materia_id = m.id
-      WHERE c.deleted_at IS NULL
-      GROUP BY m.id, m.nombre
-      ORDER BY promedio DESC
-    `);
+    // Buscar la calificación eliminada (paranoid: false para incluir eliminadas)
+    const calificacion = await Calificacion.findOne({
+      where: { id },
+      paranoid: false,
+      transaction: t
+    });
+
+    if (!calificacion) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        error: 'Calificación no encontrada'
+      });
+    }
+
+    // Verificar que esté eliminada
+    if (!calificacion.deletedAt) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        error: 'La calificación no está eliminada'
+      });
+    }
+
+    // Restaurar la calificación
+    await calificacion.update({
+      deletedAt: null,
+      deletedBy: null,
+      deleteReason: null
+    }, { transaction: t });
+
+    await calificacion.restore({ transaction: t });
+
+    await t.commit();
+
+    // Registrar en logs del sistema
+    console.log(`Calificación ${id} restaurada por control escolar ${adminId}`);
 
     res.json({
       success: true,
+      message: 'Calificación restaurada exitosamente',
       data: {
-        resumen: reporteGeneral[0],
-        por_materia: promediosPorMateria
+        id: calificacion.id,
+        restauradoPor: req.usuario.nombre + ' ' + req.usuario.apellidos,
+        fechaRestauracion: new Date()
       }
     });
   } catch (error) {
-    console.error('Error al generar reporte:', error);
+    await t.rollback();
+    console.error('Error al restaurar calificación:', error);
     res.status(500).json({
       success: false,
-      error: 'Error al generar reporte'
+      error: 'Error al restaurar calificación'
     });
   }
 };
+
+// Exportar funciones existentes que ya tengas en controlEscolarController.js
+// Mantén las funciones existentes y agrega estas nuevas

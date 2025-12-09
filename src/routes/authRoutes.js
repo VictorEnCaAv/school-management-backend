@@ -1,11 +1,11 @@
+// src/routes/authRoutes.js (ya está correcto, solo verificar)
 const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
 const { login, perfil, refrescarToken } = require('../controllers/authController');
-const { verificarToken } = require('../middlewares/authMiddleware');
-const { validarCampos } = require('../middlewares/validationMiddleware');
-const { authLimiter } = require('../middlewares/rateLimitMiddleware');
-
+const { verificarToken } = require('../middlewares/authMiddleware'); // ✓ Ya está desestructurado
+const { validarCampos } = require('../middlewares/validationMiddleware'); // ✓ Ya está desestructurado
+const { authLimiter } = require('../middlewares/rateLimitMiddleware'); // ✓ Ya está desestructurado
 /**
  * @route   POST /api/auth/login
  * @desc    Login de usuario

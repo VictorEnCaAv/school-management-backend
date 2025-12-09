@@ -13,6 +13,10 @@ module.exports = {
         type: Sequelize.STRING(120),
         allowNull: false
       },
+       apellidos: {
+        type: Sequelize.STRING(100),  // ¡Esta columna debe estar!
+        allowNull: false,
+      },
       email: {
         type: Sequelize.STRING(255),
         allowNull: false,

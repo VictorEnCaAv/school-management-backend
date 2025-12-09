@@ -3,7 +3,7 @@ const router = express.Router();
 
 const authRoutes = require('./authRoutes');
 const maestroRoutes = require('./maestroRoutes');
-const controlescolarRoutes = require('./controlescolarRoutes');
+const controlescolarRoutes = require('./controlEscolarRoutes');
 
 // Rutas públicas
 router.use('/auth', authRoutes);

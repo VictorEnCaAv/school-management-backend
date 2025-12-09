@@ -38,14 +38,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Grupo.associate = (models) => {
-    Grupo.hasMany(models.Alumno, { 
-      foreignKey: 'grupo_id', 
-      as: 'alumnos' 
-    });
-    Grupo.hasMany(models.Asignacion, { 
-      foreignKey: 'grupo_id', 
-      as: 'asignaciones' 
-    });
+   
   };
 
   return Grupo;

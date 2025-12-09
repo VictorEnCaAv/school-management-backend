@@ -47,22 +47,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Asignacion.associate = (models) => {
-    Asignacion.belongsTo(models.Usuario, { 
-      foreignKey: 'maestro_id', 
-      as: 'maestro' 
-    });
-    Asignacion.belongsTo(models.Materia, { 
-      foreignKey: 'materia_id', 
-      as: 'materia' 
-    });
-    Asignacion.belongsTo(models.Grupo, { 
-      foreignKey: 'grupo_id', 
-      as: 'grupo' 
-    });
-    Asignacion.hasMany(models.Calificacion, { 
-      foreignKey: 'asignacion_id', 
-      as: 'calificaciones' 
-    });
+    
   };
 
   return Asignacion;

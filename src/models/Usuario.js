@@ -1,7 +1,7 @@
-const { DataTypes } = require('sequelize');
+// src/models/Usuario.js (ACTUALIZADO)
 const bcrypt = require('bcryptjs');
 
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const Usuario = sequelize.define('Usuario', {
     id: {
       type: DataTypes.INTEGER,
@@ -11,6 +11,11 @@ module.exports = (sequelize) => {
     nombre: {
       type: DataTypes.STRING(120),
       allowNull: false
+    },
+    apellidos: {  // ← AÑADIR ESTE CAMPO
+      type: DataTypes.STRING(100),
+      allowNull: false,
+      defaultValue: ''
     },
     email: {
       type: DataTypes.STRING(255),
@@ -36,7 +41,8 @@ module.exports = (sequelize) => {
           msg: 'El rol debe ser MAESTRO o CONTROL_ESCOLAR'
         }
       }
-    }
+    },
+
   }, {
     tableName: 'usuarios',
     timestamps: true,

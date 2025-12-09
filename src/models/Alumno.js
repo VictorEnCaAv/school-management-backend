@@ -1,6 +1,5 @@
-const { DataTypes } = require('sequelize');
-
-module.exports = (sequelize) => {
+// src/models/Alumno.js
+module.exports = (sequelize, DataTypes) => {
   const Alumno = sequelize.define('Alumno', {
     id: {
       type: DataTypes.INTEGER,
@@ -20,16 +19,22 @@ module.exports = (sequelize) => {
       type: DataTypes.DATEONLY,
       allowNull: true
     },
-    grupo: {
-      type: DataTypes.STRING(50),
-      allowNull: true
+    grupo_id: {  // AÑADE ESTE CAMPO
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'grupos',
+        key: 'id'
+      }
     }
   }, {
     tableName: 'alumnos',
     timestamps: true,
+    underscored: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at'
   });
 
+  // No necesitamos associate aquí si usamos associations.js
   return Alumno;
 };

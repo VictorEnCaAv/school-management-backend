@@ -37,15 +37,15 @@ const verificarToken = async (req, res, next) => {
       });
     }
 
-    if (!usuario.activo) {
-      return res.status(403).json({
-        success: false,
-        message: 'Usuario inactivo'
-      });
-    }
+//    if (!usuario.activo) {
+//      return res.status(403).json({
+//        success: false,
+//        message: 'Usuario inactivo'
+//      });
+//    }
 
     // Agregar usuario al request
-    req.usuario = usuario;
+     req.usuario = usuario;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

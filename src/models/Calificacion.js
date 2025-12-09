@@ -51,9 +51,33 @@ module.exports = (sequelize, DataTypes) => {
     fecha_modificacion: {
       type: DataTypes.DATE
     },
-    deleted_at: {
-      type: DataTypes.DATE
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    deletedBy: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'usuarios',
+        key: 'id'
+      }
+    },
+    deleteReason: {
+      type: DataTypes.STRING(255),
+      allowNull: true
     }
+  }, {  paranoid: true,
+    deletedAt: 'deletedAt', 
+    hooks: {
+      beforeDestroy: (calificacion, options) => {
+        // Registrar quién elimina
+        if (options.usuarioId) {
+          calificacion.deletedBy = options.usuarioId;
+        }
+      }
+    }
+  }, {
   }, {
     tableName: 'calificaciones',
     timestamps: true,
@@ -65,18 +89,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Calificacion.associate = (models) => {
-    Calificacion.belongsTo(models.Asignacion, { 
-      foreignKey: 'asignacion_id', 
-      as: 'asignacion' 
-    });
-    Calificacion.belongsTo(models.Alumno, { 
-      foreignKey: 'alumno_id', 
-      as: 'alumno' 
-    });
-    Calificacion.belongsTo(models.Usuario, { 
-      foreignKey: 'modificada_por', 
-      as: 'modificador' 
-    });
+
   };
 
   return Calificacion;
