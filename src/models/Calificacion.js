@@ -1,33 +1,24 @@
-const { DataTypes } = require('sequelize');
-
-module.exports = (sequelize) => {
+// src/models/Calificacion.js (ACTUALIZADO)
+module.exports = (sequelize, DataTypes) => {
   const Calificacion = sequelize.define('Calificacion', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true
     },
+    asignacion_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'Asignaciones',
+        key: 'id'
+      }
+    },
     alumno_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'alumnos',
-        key: 'id'
-      }
-    },
-    materia_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'materias',
-        key: 'id'
-      }
-    },
-    maestro_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'usuarios',
+        model: 'Alumnos',
         key: 'id'
       }
     },
@@ -39,37 +30,53 @@ module.exports = (sequelize) => {
         max: 100
       }
     },
-    fecha_registro: {
-      type: DataTypes.DATE,
-      allowNull: false,
+    periodo: {
+      type: DataTypes.STRING(20),
+      allowNull: false
+    },
+    fecha_evaluacion: {
+      type: DataTypes.DATEONLY,
       defaultValue: DataTypes.NOW
     },
     observaciones: {
-      type: DataTypes.TEXT,
-      allowNull: true
+      type: DataTypes.TEXT
+    },
+    modificada_por: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Usuarios',
+        key: 'id'
+      }
+    },
+    fecha_modificacion: {
+      type: DataTypes.DATE
     },
     deleted_at: {
-      type: DataTypes.DATE,
-      allowNull: true,
-      defaultValue: null
+      type: DataTypes.DATE
     }
   }, {
     tableName: 'calificaciones',
     timestamps: true,
+    underscored: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    paranoid: false // No usar paranoid porque tenemos deleted_at manual
+    paranoid: true,
+    deletedAt: 'deleted_at'
   });
 
-  // Método para verificar si el alumno aprobó
-  Calificacion.prototype.aprobo = function() {
-    return parseFloat(this.nota) >= 60;
-  };
-
-  // Método para soft delete
-  Calificacion.prototype.softDelete = async function() {
-    this.deleted_at = new Date();
-    await this.save();
+  Calificacion.associate = (models) => {
+    Calificacion.belongsTo(models.Asignacion, { 
+      foreignKey: 'asignacion_id', 
+      as: 'asignacion' 
+    });
+    Calificacion.belongsTo(models.Alumno, { 
+      foreignKey: 'alumno_id', 
+      as: 'alumno' 
+    });
+    Calificacion.belongsTo(models.Usuario, { 
+      foreignKey: 'modificada_por', 
+      as: 'modificador' 
+    });
   };
 
   return Calificacion;
