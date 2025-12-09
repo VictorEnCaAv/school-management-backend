@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Asignaciones',
+        model: 'asignaciones',  // ← Minúscula, igual que en Asignacion.js
         key: 'id'
       }
     },
@@ -18,7 +18,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Alumnos',
+        model: 'alumnos',  // ← Minúscula
         key: 'id'
       }
     },
@@ -42,12 +42,12 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT
     },
     modificada_por: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Usuarios',
-        key: 'id'
-      }
-    },
+  type: DataTypes.INTEGER,
+  references: {
+    model: 'usuarios',  // ← Minúscula
+    key: 'id'
+  }
+},
     fecha_modificacion: {
       type: DataTypes.DATE
     },
@@ -55,14 +55,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true
     },
-    deletedBy: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'usuarios',
-        key: 'id'
-      }
-    },
+deletedBy: {
+  type: DataTypes.INTEGER,
+  allowNull: true,
+  references: {
+    model: 'usuarios',  // ← Minúscula (ya está bien)
+    key: 'id'
+  }
+},
     deleteReason: {
       type: DataTypes.STRING(255),
       allowNull: true

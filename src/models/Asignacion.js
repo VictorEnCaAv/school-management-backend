@@ -6,30 +6,30 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
-    maestro_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'Usuarios',
-        key: 'id'
-      }
-    },
-    materia_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'Materias',
-        key: 'id'
-      }
-    },
+maestro_id: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  references: {
+    model: 'usuarios',  // ← Minúscula
+    key: 'id'
+  }
+},
+materia_id: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  references: {
+    model: 'materias',  // ← Minúscula
+    key: 'id'
+  }
+},
     grupo_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'Grupos',
-        key: 'id'
-      }
-    },
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  references: {
+    model: 'grupos',  // ← Minúscula
+    key: 'id'
+  }
+},
     ciclo_escolar: {
       type: DataTypes.STRING(20),
       allowNull: false
