@@ -1,3 +1,4 @@
+// seeders/20240101000001-usuarios.js
 'use strict';
 const bcrypt = require('bcryptjs');
 
@@ -7,7 +8,8 @@ module.exports = {
     
     await queryInterface.bulkInsert('usuarios', [
       {
-        nombre: 'Administrador del Sistema',
+        nombre: 'Administrador',
+        apellidos: 'del Sistema',
         email: 'admin@school.com',
         password_hash: await bcrypt.hash('admin123', salt),
         rol: 'CONTROL_ESCOLAR',
@@ -15,24 +17,27 @@ module.exports = {
         updated_at: new Date()
       },
       {
-        nombre: 'Juan Carlos Ramírez',
-        email: 'maestro1@school.com',
+        nombre: 'María',
+        apellidos: 'López García',
+        email: 'maria.lopez@school.com',
         password_hash: await bcrypt.hash('maestro123', salt),
         rol: 'MAESTRO',
         created_at: new Date(),
         updated_at: new Date()
       },
       {
-        nombre: 'María Teresa González',
-        email: 'maestro2@school.com',
+        nombre: 'Carlos',
+        apellidos: 'Rodríguez Pérez',
+        email: 'carlos.rodriguez@school.com',
         password_hash: await bcrypt.hash('maestro123', salt),
         rol: 'MAESTRO',
         created_at: new Date(),
         updated_at: new Date()
       },
       {
-        nombre: 'Pedro López Martínez',
-        email: 'maestro3@school.com',
+        nombre: 'Ana',
+        apellidos: 'Martínez Sánchez',
+        email: 'ana.martinez@school.com',
         password_hash: await bcrypt.hash('maestro123', salt),
         rol: 'MAESTRO',
         created_at: new Date(),
@@ -45,3 +50,5 @@ module.exports = {
     await queryInterface.bulkDelete('usuarios', null, {});
   }
 };
+
+
