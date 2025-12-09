@@ -1,187 +1,309 @@
-const { Calificacion, Alumno, Materia, Usuario } = require('../models');
-const { asyncHandler } = require('../middlewares/errorHandler');
-const { sequelize } = require('../models');
+// src/controllers/maestroController.js
+const { Asignacion, Calificacion, Alumno, Materia, Grupo, sequelize } = require('../models');
 
-/**
- * Obtener alumnos asignados al maestro autenticado
- * Retorna los alumnos que tienen calificaciones registradas por este maestro
- */
-const obtenerAlumnosAsignados = asyncHandler(async (req, res) => {
-  const maestroId = req.usuario.id;
-  const { grupo } = req.query;
+exports.obtenerMisAsignaciones = async (req, res) => {
+  try {
+    const maestroId = req.usuario.id;
 
-  // Construir filtro
-  const whereAlumno = {};
-  if (grupo) {
-    whereAlumno.grupo = grupo;
-  }
-
-  // Obtener IDs únicos de alumnos que tienen calificaciones de este maestro
-  const calificaciones = await Calificacion.findAll({
-    where: {
-      maestro_id: maestroId,
-      deleted_at: null
-    },
-    attributes: [[sequelize.fn('DISTINCT', sequelize.col('alumno_id')), 'alumno_id']],
-    raw: true
-  });
-
-  const alumnoIds = calificaciones.map(c => c.alumno_id);
-
-  // Obtener información completa de los alumnos
-  const alumnos = await Alumno.findAll({
-    where: {
-      id: alumnoIds,
-      ...whereAlumno
-    },
-    order: [['nombre', 'ASC']]
-  });
-
-  res.json({
-    success: true,
-    data: alumnos,
-    message: `${alumnos.length} alumno(s) encontrado(s)`
-  });
-});
-
-/**
- * Obtener calificaciones del maestro autenticado
- */
-const obtenerMisCalificaciones = asyncHandler(async (req, res) => {
-  const maestroId = req.usuario.id;
-  const { materia_id, alumno_id, grupo } = req.query;
-
-  // Construir filtros
-  const whereCalificacion = {
-    maestro_id: maestroId,
-    deleted_at: null
-  };
-
-  if (materia_id) {
-    whereCalificacion.materia_id = materia_id;
-  }
-
-  if (alumno_id) {
-    whereCalificacion.alumno_id = alumno_id;
-  }
-
-  const whereAlumno = {};
-  if (grupo) {
-    whereAlumno.grupo = grupo;
-  }
-
-  const calificaciones = await Calificacion.findAll({
-    where: whereCalificacion,
-    include: [
-      {
-        model: Alumno,
-        as: 'alumno',
-        attributes: ['id', 'nombre', 'matricula', 'grupo'],
-        where: whereAlumno
+    const asignaciones = await Asignacion.findAll({
+      where: { 
+        maestro_id: maestroId,
+        activo: true 
       },
-      {
-        model: Materia,
-        as: 'materia',
-        attributes: ['id', 'nombre', 'codigo']
-      }
-    ],
-    order: [['fecha_registro', 'DESC']]
-  });
+      include: [
+        {
+          model: Materia,
+          as: 'materia',
+          attributes: ['id', 'codigo', 'nombre']
+        },
+        {
+          model: Grupo,
+          as: 'grupo',
+          attributes: ['id', 'codigo', 'nombre', 'ciclo_escolar']
+        }
+      ],
+      order: [['materia', 'nombre', 'ASC']]
+    });
 
-  res.json({
-    success: true,
-    data: calificaciones,
-    message: `${calificaciones.length} calificación(es) encontrada(s)`
-  });
-});
-
-/**
- * Crear o actualizar calificación
- * Si ya existe una calificación del mismo maestro para el mismo alumno y materia, la actualiza
- * Si no existe, crea una nueva
- */
-const crearOActualizarCalificacion = asyncHandler(async (req, res) => {
-  const { alumno_id, materia_id, nota, observaciones } = req.body;
-  const maestroId = req.usuario.id;
-
-  // Verificar que el alumno existe
-  const alumno = await Alumno.findByPk(alumno_id);
-  if (!alumno) {
-    return res.status(404).json({
+    res.json({
+      success: true,
+      data: asignaciones
+    });
+  } catch (error) {
+    console.error('Error al obtener asignaciones:', error);
+    res.status(500).json({
       success: false,
-      message: 'Alumno no encontrado'
+      error: 'Error al obtener asignaciones'
     });
   }
+};
 
-  // Verificar que la materia existe
-  const materia = await Materia.findByPk(materia_id);
-  if (!materia) {
-    return res.status(404).json({
-      success: false,
-      message: 'Materia no encontrada'
+exports.obtenerAlumnosPorAsignacion = async (req, res) => {
+  try {
+    const { asignacion_id } = req.params;
+    const maestroId = req.usuario.id;
+
+    // Verificar que la asignación pertenece al maestro
+    const asignacion = await Asignacion.findOne({
+      where: {
+        id: asignacion_id,
+        maestro_id: maestroId
+      },
+      include: [
+        { model: Materia, as: 'materia' },
+        { model: Grupo, as: 'grupo' }
+      ]
     });
-  }
 
-  // Buscar si ya existe una calificación de este maestro para este alumno y materia
-  const calificacionExistente = await Calificacion.findOne({
-    where: {
-      alumno_id,
-      materia_id,
-      maestro_id: maestroId,
-      deleted_at: null
+    if (!asignacion) {
+      return res.status(403).json({
+        success: false,
+        error: 'No tienes permiso para acceder a esta asignación'
+      });
     }
-  });
 
-  let calificacion;
-  let mensaje;
-
-  if (calificacionExistente) {
-    // Actualizar calificación existente
-    await calificacionExistente.update({
-      nota,
-      observaciones: observaciones || calificacionExistente.observaciones,
-      fecha_registro: new Date()
-    });
-    calificacion = calificacionExistente;
-    mensaje = 'Calificación actualizada exitosamente';
-  } else {
-    // Crear nueva calificación
-    calificacion = await Calificacion.create({
-      alumno_id,
-      materia_id,
-      maestro_id: maestroId,
-      nota,
-      observaciones,
-      fecha_registro: new Date()
-    });
-    mensaje = 'Calificación creada exitosamente';
-  }
-
-  // Obtener calificación completa con relaciones
-  const calificacionCompleta = await Calificacion.findByPk(calificacion.id, {
-    include: [
-      {
-        model: Alumno,
-        as: 'alumno',
-        attributes: ['id', 'nombre', 'matricula', 'grupo']
+    // Obtener alumnos del grupo
+    const alumnos = await Alumno.findAll({
+      where: {
+        grupo_id: asignacion.grupo_id,
+        activo: true
       },
-      {
-        model: Materia,
-        as: 'materia',
-        attributes: ['id', 'nombre', 'codigo']
+      attributes: ['id', 'matricula', 'nombre', 'apellidos'],
+      order: [['apellidos', 'ASC'], ['nombre', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: {
+        asignacion,
+        alumnos
       }
-    ]
-  });
+    });
+  } catch (error) {
+    console.error('Error al obtener alumnos:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al obtener alumnos'
+    });
+  }
+};
 
-  res.status(calificacionExistente ? 200 : 201).json({
-    success: true,
-    message: mensaje,
-    data: calificacionCompleta
-  });
-});
+exports.registrarCalificacion = async (req, res) => {
+  const t = await sequelize.transaction();
 
-module.exports = {
-  obtenerAlumnosAsignados,
-  obtenerMisCalificaciones,
-  crearOActualizarCalificacion
+  try {
+    const { asignacion_id, alumno_id, nota, periodo, observaciones } = req.body;
+    const maestroId = req.usuario.id;
+
+    // Verificar que la asignación pertenece al maestro
+    const asignacion = await Asignacion.findOne({
+      where: {
+        id: asignacion_id,
+        maestro_id: maestroId,
+        activo: true
+      }
+    });
+
+    if (!asignacion) {
+      await t.rollback();
+      return res.status(403).json({
+        success: false,
+        error: 'No tienes permiso para calificar en esta asignación'
+      });
+    }
+
+    // Verificar que el alumno pertenece al grupo
+    const alumno = await Alumno.findOne({
+      where: {
+        id: alumno_id,
+        grupo_id: asignacion.grupo_id,
+        activo: true
+      }
+    });
+
+    if (!alumno) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        error: 'Alumno no encontrado en este grupo'
+      });
+    }
+
+    // Verificar si ya existe calificación para este periodo
+    const calificacionExistente = await Calificacion.findOne({
+      where: {
+        asignacion_id,
+        alumno_id,
+        periodo
+      }
+    });
+
+    if (calificacionExistente) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        error: 'Ya existe una calificación para este alumno en este periodo. Usa la opción de editar.'
+      });
+    }
+
+    // Crear calificación
+    const calificacion = await Calificacion.create({
+      asignacion_id,
+      alumno_id,
+      nota,
+      periodo,
+      fecha_evaluacion: new Date(),
+      observaciones
+    }, { transaction: t });
+
+    await t.commit();
+
+    // Cargar datos relacionados
+    const calificacionCompleta = await Calificacion.findByPk(calificacion.id, {
+      include: [
+        {
+          model: Asignacion,
+          as: 'asignacion',
+          include: [
+            { model: Materia, as: 'materia' },
+            { model: Grupo, as: 'grupo' }
+          ]
+        },
+        {
+          model: Alumno,
+          as: 'alumno',
+          attributes: ['id', 'matricula', 'nombre', 'apellidos']
+        }
+      ]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Calificación registrada exitosamente',
+      data: calificacionCompleta
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error al registrar calificación:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al registrar calificación'
+    });
+  }
+};
+
+exports.obtenerMisCalificaciones = async (req, res) => {
+  try {
+    const maestroId = req.usuario.id;
+    const { asignacion_id, periodo } = req.query;
+
+    const whereClause = {};
+    
+    if (asignacion_id) {
+      whereClause.asignacion_id = asignacion_id;
+    }
+    
+    if (periodo) {
+      whereClause.periodo = periodo;
+    }
+
+    const calificaciones = await Calificacion.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Asignacion,
+          as: 'asignacion',
+          where: { maestro_id: maestroId },
+          include: [
+            { model: Materia, as: 'materia' },
+            { model: Grupo, as: 'grupo' }
+          ]
+        },
+        {
+          model: Alumno,
+          as: 'alumno',
+          attributes: ['id', 'matricula', 'nombre', 'apellidos']
+        }
+      ],
+      order: [
+        ['periodo', 'DESC'],
+        ['fecha_evaluacion', 'DESC']
+      ]
+    });
+
+    res.json({
+      success: true,
+      data: calificaciones
+    });
+  } catch (error) {
+    console.error('Error al obtener calificaciones:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al obtener calificaciones'
+    });
+  }
+};
+
+exports.actualizarCalificacion = async (req, res) => {
+  const t = await sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+    const { nota, observaciones } = req.body;
+    const maestroId = req.usuario.id;
+
+    // Buscar calificación y verificar permisos
+    const calificacion = await Calificacion.findOne({
+      where: { id },
+      include: [{
+        model: Asignacion,
+        as: 'asignacion',
+        where: { maestro_id: maestroId }
+      }]
+    });
+
+    if (!calificacion) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        error: 'Calificación no encontrada o no tienes permiso para editarla'
+      });
+    }
+
+    // Actualizar
+    await calificacion.update({
+      nota,
+      observaciones
+    }, { transaction: t });
+
+    await t.commit();
+
+    // Recargar con datos completos
+    const calificacionActualizada = await Calificacion.findByPk(id, {
+      include: [
+        {
+          model: Asignacion,
+          as: 'asignacion',
+          include: [
+            { model: Materia, as: 'materia' },
+            { model: Grupo, as: 'grupo' }
+          ]
+        },
+        { model: Alumno, as: 'alumno' }
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: 'Calificación actualizada exitosamente',
+      data: calificacionActualizada
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error al actualizar calificación:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al actualizar calificación'
+    });
+  }
 };

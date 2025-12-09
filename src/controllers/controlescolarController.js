@@ -1,273 +1,204 @@
-const { Calificacion, Alumno, Materia, Usuario } = require('../models');
-const { asyncHandler } = require('../middlewares/errorHandler');
-const { sequelize } = require('../models');
+// src/controllers/controlEscolarController.js
+const { Calificacion, Asignacion, Alumno, Materia, Grupo, Usuario, sequelize } = require('../models');
 
-/**
- * Obtener reporte global de promedios
- * Puede filtrar por alumno_id, materia_id o grupo
- */
-const obtenerReportePromedios = asyncHandler(async (req, res) => {
-  const { alumno_id, materia_id, grupo } = req.query;
+exports.obtenerTodasLasCalificaciones = async (req, res) => {
+  try {
+    const { maestro_id, materia_id, grupo_id, periodo } = req.query;
 
-  // Si se especifica alumno_id, retornar reporte por alumno
-  if (alumno_id) {
-    return await reportePorAlumno(req, res, alumno_id);
-  }
+    const whereClause = {};
+    const asignacionWhere = {};
 
-  // Si se especifica materia_id, retornar reporte por materia
-  if (materia_id) {
-    return await reportePorMateria(req, res, materia_id);
-  }
+    if (maestro_id) asignacionWhere.maestro_id = maestro_id;
+    if (materia_id) asignacionWhere.materia_id = materia_id;
+    if (grupo_id) asignacionWhere.grupo_id = grupo_id;
+    if (periodo) whereClause.periodo = periodo;
 
-  // Reporte general
-  return await reporteGeneral(req, res, grupo);
-});
+    const calificaciones = await Calificacion.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Asignacion,
+          as: 'asignacion',
+          where: Object.keys(asignacionWhere).length > 0 ? asignacionWhere : undefined,
+          include: [
+            { 
+              model: Materia, 
+              as: 'materia',
+              attributes: ['id', 'codigo', 'nombre']
+            },
+            { 
+              model: Grupo, 
+              as: 'grupo',
+              attributes: ['id', 'codigo', 'nombre']
+            },
+            {
+              model: Usuario,
+              as: 'maestro',
+              attributes: ['id', 'nombre', 'apellidos']
+            }
+          ]
+        },
+        {
+          model: Alumno,
+          as: 'alumno',
+          attributes: ['id', 'matricula', 'nombre', 'apellidos']
+        }
+      ],
+      order: [
+        ['created_at', 'DESC']
+      ]
+    });
 
-/**
- * Reporte por alumno específico
- */
-const reportePorAlumno = async (req, res, alumno_id) => {
-  const alumno = await Alumno.findByPk(alumno_id);
-  
-  if (!alumno) {
-    return res.status(404).json({
+    res.json({
+      success: true,
+      data: calificaciones
+    });
+  } catch (error) {
+    console.error('Error al obtener calificaciones:', error);
+    res.status(500).json({
       success: false,
-      message: 'Alumno no encontrado'
+      error: 'Error al obtener calificaciones'
     });
   }
-
-  const calificaciones = await Calificacion.findAll({
-    where: {
-      alumno_id,
-      deleted_at: null
-    },
-    include: [
-      {
-        model: Materia,
-        as: 'materia',
-        attributes: ['id', 'nombre', 'codigo']
-      },
-      {
-        model: Usuario,
-        as: 'maestro',
-        attributes: ['id', 'nombre']
-      }
-    ],
-    order: [['fecha_registro', 'DESC']]
-  });
-
-  // Calcular promedio
-  const promedio = calificaciones.length > 0
-    ? (calificaciones.reduce((sum, cal) => sum + parseFloat(cal.nota), 0) / calificaciones.length).toFixed(2)
-    : 0;
-
-  res.json({
-    success: true,
-    data: {
-      alumno,
-      promedio_general: promedio,
-      total_calificaciones: calificaciones.length,
-      calificaciones
-    }
-  });
 };
 
-/**
- * Reporte por materia específica
- */
-const reportePorMateria = async (req, res, materia_id) => {
-  const materia = await Materia.findByPk(materia_id);
-  
-  if (!materia) {
-    return res.status(404).json({
+exports.modificarCalificacion = async (req, res) => {
+  const t = await sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+    const { nota, observaciones } = req.body;
+    const adminId = req.usuario.id;
+
+    const calificacion = await Calificacion.findByPk(id);
+
+    if (!calificacion) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        error: 'Calificación no encontrada'
+      });
+    }
+
+    // Actualizar con registro de quién modificó
+    await calificacion.update({
+      nota,
+      observaciones,
+      modificada_por: adminId,
+      fecha_modificacion: new Date()
+    }, { transaction: t });
+
+    await t.commit();
+
+    // Recargar con datos completos
+    const calificacionActualizada = await Calificacion.findByPk(id, {
+      include: [
+        {
+          model: Asignacion,
+          as: 'asignacion',
+          include: [
+            { model: Materia, as: 'materia' },
+            { model: Grupo, as: 'grupo' },
+            { model: Usuario, as: 'maestro' }
+          ]
+        },
+        { model: Alumno, as: 'alumno' },
+        { 
+          model: Usuario, 
+          as: 'modificador',
+          attributes: ['id', 'nombre', 'apellidos']
+        }
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: 'Calificación modificada por Control Escolar',
+      data: calificacionActualizada
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error al modificar calificación:', error);
+    res.status(500).json({
       success: false,
-      message: 'Materia no encontrada'
+      error: 'Error al modificar calificación'
     });
   }
-
-  const calificaciones = await Calificacion.findAll({
-    where: {
-      materia_id,
-      deleted_at: null
-    },
-    include: [
-      {
-        model: Alumno,
-        as: 'alumno',
-        attributes: ['id', 'nombre', 'matricula', 'grupo']
-      },
-      {
-        model: Usuario,
-        as: 'maestro',
-        attributes: ['id', 'nombre']
-      }
-    ]
-  });
-
-  // Calcular estadísticas
-  const notas = calificaciones.map(c => parseFloat(c.nota));
-  const promedio = notas.length > 0
-    ? (notas.reduce((sum, nota) => sum + nota, 0) / notas.length).toFixed(2)
-    : 0;
-  const notaMaxima = notas.length > 0 ? Math.max(...notas).toFixed(2) : 0;
-  const notaMinima = notas.length > 0 ? Math.min(...notas).toFixed(2) : 0;
-  const aprobados = notas.filter(nota => nota >= 60).length;
-  const reprobados = notas.length - aprobados;
-
-  res.json({
-    success: true,
-    data: {
-      materia,
-      estadisticas: {
-        promedio,
-        nota_maxima: notaMaxima,
-        nota_minima: notaMinima,
-        total_alumnos: calificaciones.length,
-        aprobados,
-        reprobados,
-        porcentaje_aprobacion: calificaciones.length > 0 
-          ? ((aprobados / calificaciones.length) * 100).toFixed(2) 
-          : 0
-      },
-      calificaciones
-    }
-  });
 };
 
-/**
- * Reporte general del sistema
- */
-const reporteGeneral = async (req, res, grupo = null) => {
-  // Filtro de grupo si se proporciona
-  const whereAlumno = grupo ? { grupo } : {};
+exports.eliminarCalificacion = async (req, res) => {
+  const t = await sequelize.transaction();
 
-  // Obtener todas las calificaciones no eliminadas
-  const calificaciones = await Calificacion.findAll({
-    where: { deleted_at: null },
-    include: [
-      {
-        model: Alumno,
-        as: 'alumno',
-        attributes: ['id', 'nombre', 'matricula', 'grupo'],
-        where: whereAlumno
-      },
-      {
-        model: Materia,
-        as: 'materia',
-        attributes: ['id', 'nombre', 'codigo']
-      }
-    ]
-  });
+  try {
+    const { id } = req.params;
 
-  // Calcular promedio general
-  const promedioGeneral = calificaciones.length > 0
-    ? (calificaciones.reduce((sum, cal) => sum + parseFloat(cal.nota), 0) / calificaciones.length).toFixed(2)
-    : 0;
+    const calificacion = await Calificacion.findByPk(id);
 
-  // Promedios por alumno
-  const promediosPorAlumno = {};
-  calificaciones.forEach(cal => {
-    const alumnoId = cal.alumno.id;
-    if (!promediosPorAlumno[alumnoId]) {
-      promediosPorAlumno[alumnoId] = {
-        alumno: cal.alumno,
-        notas: [],
-        total: 0
-      };
+    if (!calificacion) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        error: 'Calificación no encontrada'
+      });
     }
-    promediosPorAlumno[alumnoId].notas.push(parseFloat(cal.nota));
-  });
 
-  const promediosAlumnos = Object.values(promediosPorAlumno).map(data => ({
-    alumno: data.alumno,
-    promedio: (data.notas.reduce((sum, nota) => sum + nota, 0) / data.notas.length).toFixed(2),
-    total_materias: data.notas.length
-  }));
+    // Soft delete
+    await calificacion.destroy({ transaction: t });
 
-  // Promedios por materia
-  const promediosPorMateria = {};
-  calificaciones.forEach(cal => {
-    const materiaId = cal.materia.id;
-    if (!promediosPorMateria[materiaId]) {
-      promediosPorMateria[materiaId] = {
-        materia: cal.materia,
-        notas: [],
-        alumnos: new Set()
-      };
-    }
-    promediosPorMateria[materiaId].notas.push(parseFloat(cal.nota));
-    promediosPorMateria[materiaId].alumnos.add(cal.alumno.id);
-  });
+    await t.commit();
 
-  const promediosMaterias = Object.values(promediosPorMateria).map(data => ({
-    materia: data.materia,
-    promedio: (data.notas.reduce((sum, nota) => sum + nota, 0) / data.notas.length).toFixed(2),
-    total_alumnos: data.alumnos.size
-  }));
-
-  res.json({
-    success: true,
-    data: {
-      promedio_general: promedioGeneral,
-      total_calificaciones: calificaciones.length,
-      promedios_por_alumno: promediosAlumnos,
-      promedios_por_materia: promediosMaterias,
-      filtros: grupo ? { grupo } : null
-    }
-  });
-};
-
-/**
- * Eliminar calificación (soft delete)
- * Solo Control Escolar puede eliminar cualquier calificación
- */
-const eliminarCalificacion = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const calificacion = await Calificacion.findOne({
-    where: {
-      id,
-      deleted_at: null
-    },
-    include: [
-      {
-        model: Alumno,
-        as: 'alumno',
-        attributes: ['nombre']
-      },
-      {
-        model: Materia,
-        as: 'materia',
-        attributes: ['nombre']
-      }
-    ]
-  });
-
-  if (!calificacion) {
-    return res.status(404).json({
+    res.json({
+      success: true,
+      message: 'Calificación eliminada correctamente'
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error('Error al eliminar calificación:', error);
+    res.status(500).json({
       success: false,
-      message: 'Calificación no encontrada o ya ha sido eliminada'
+      error: 'Error al eliminar calificación'
     });
   }
+};
 
-  // Soft delete
-  await calificacion.update({
-    deleted_at: new Date()
-  });
+exports.obtenerReporteGeneral = async (req, res) => {
+  try {
+    const [reporteGeneral] = await sequelize.query(`
+      SELECT 
+        COUNT(DISTINCT c.alumno_id) as total_alumnos,
+        COUNT(c.id) as total_calificaciones,
+        ROUND(AVG(c.nota), 2) as promedio_general,
+        ROUND(MIN(c.nota), 2) as nota_minima,
+        ROUND(MAX(c.nota), 2) as nota_maxima
+      FROM calificaciones c
+      WHERE c.deleted_at IS NULL
+    `);
 
-  res.json({
-    success: true,
-    message: 'Calificación eliminada exitosamente',
-    data: {
-      id: calificacion.id,
-      alumno: calificacion.alumno.nombre,
-      materia: calificacion.materia.nombre,
-      nota: calificacion.nota
-    }
-  });
-});
+    const [promediosPorMateria] = await sequelize.query(`
+      SELECT 
+        m.nombre as materia,
+        ROUND(AVG(c.nota), 2) as promedio,
+        COUNT(c.id) as total_calificaciones
+      FROM calificaciones c
+      INNER JOIN asignaciones a ON c.asignacion_id = a.id
+      INNER JOIN materias m ON a.materia_id = m.id
+      WHERE c.deleted_at IS NULL
+      GROUP BY m.id, m.nombre
+      ORDER BY promedio DESC
+    `);
 
-module.exports = {
-  obtenerReportePromedios,
-  eliminarCalificacion
+    res.json({
+      success: true,
+      data: {
+        resumen: reporteGeneral[0],
+        por_materia: promediosPorMateria
+      }
+    });
+  } catch (error) {
+    console.error('Error al generar reporte:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al generar reporte'
+    });
+  }
 };
